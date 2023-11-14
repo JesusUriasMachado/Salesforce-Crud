@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:tls="http://www.mulesoft.org/schema/mule/tls" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+    <http:listener-config name="sf-sapi-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="sf-sapi-config" api="sf-sapi.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <tls:context name="TLS_Context" doc:name="TLS Context" doc:id="8552d91d-6029-4e9f-83e4-df24cecd69f4" >
+		<tls:key-store type="jks" path="${secure::key.path}" alias="${secure::key.alias}" keyPassword="${secure::key.pass}" password="${secure::key.pass}" />
+	</tls:context>
+	<http:listener-config name="httpsListenerConfig" doc:name="HTTP Listener config" doc:id="95343b10-9bd9-4f5b-88d2-cc086eec1db1" >
+		<http:listener-connection protocol="HTTPS" host="0.0.0.0" port="${secure::http.port}" tlsContext="TLS_Context" />
+	</http:listener-config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="89072437-6bbe-4fb5-a4aa-3e095f1fa484" >
+		<salesforce:basic-connection username="${secure::sf.user}" password="${secure::sf.pass}" securityToken="${secure::sf.token}" />
+	</salesforce:sfdc-config>
+	<flow name="sf-sapi-main">
+        <http:listener config-ref="httpsListenerConfig" path="/api/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="sf-sapi-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:BAD_REQUEST">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Bad request",
+	details : error.description
+}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[400]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found",
+	details : error.description}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus"><![CDATA[404]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Method not allowed"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">405</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_ACCEPTABLE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not acceptable"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">406</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Unsupported media type"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">415</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:NOT_IMPLEMENTED">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Not Implemented"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">501</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="sf-sapi-console">
+        <http:listener config-ref="httpsListenerConfig" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console config-ref="sf-sapi-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Message">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{message: "Resource not found"}]]></ee:set-payload>
+                    </ee:message>
+                    <ee:variables>
+                        <ee:set-variable variableName="httpStatus">404</ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <flow name="delete:\user\(id):sf-sapi-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "User deleted sucessfully"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="patch:\user\(id):multipart\form-data:sf-sapi-config">
+        <ee:transform doc:name="Transform Message">
+            <ee:variables>
+                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+        <ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "User updated sucessfully"
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </flow>
+    <flow name="get:\user\(id):sf-sapi-config">
+		<salesforce:query doc:name="Get User" doc:id="30a1d0c2-e65b-4153-83e6-0acffe90656d" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT
+	ID, fName__c, lName__c, email__c, gender__c
+FROM sfUsuarios__c
+WHERE Id = ':id']]></salesforce:salesforce-query>
+			<salesforce:parameters ><![CDATA[#[output application/java
+---
+{
+	id : attributes.uriParams.id
+}]]]></salesforce:parameters>
+		</salesforce:query>
+		<choice doc:name="Choice" doc:id="70f98ef0-d594-48fb-88b8-bdbb8a31af32" >
+			<when expression="sizeOf(payload) &gt;= 1">
+				<ee:transform doc:name="User Found" doc:id="84247dd6-1562-4abb-9758-90269df9293e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="User Not Found" doc:id="fbbc0098-50fc-491e-a465-b92b80b1625c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "No se encontro el usuario."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set Status" doc:id="c7e967a0-858c-4533-935d-b08d1ebe97df" variableName="httpStatus"/>
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="get:\user:sf-sapi-config">
+		<salesforce:query doc:name="Get Users" doc:id="475659ca-bc49-41d7-9958-afb985715a6a" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query ><![CDATA[SELECT
+	ID, fName__c, lName__c, email__c, gender__c
+FROM sfUsuarios__c]]></salesforce:salesforce-query>
+		</salesforce:query>
+		<choice doc:name="Choice" doc:id="9736d6c1-299d-41d7-b1e8-cfb306f7b506" >
+			<when expression="#[sizeOf(payload) &gt;= 1]">
+				<ee:transform doc:name="Users Found" doc:id="ae7e96e3-2485-4806-b80c-4e39f083700c">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	dataSize: sizeOf(payload),
+	data: payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Users Not Found" doc:id="0d97195d-d5b6-461f-a20a-3f4978870ac1" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "No se encontraron resultados."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set Status" doc:id="d9f01853-04d5-439a-8ebb-351fd4ebbdf7" variableName="httpStatus"/>
+			</otherwise>
+		</choice>
+    </flow>
+    <flow name="post:\user:multipart\form-data:sf-sapi-config">
+		<set-variable value="#[payload.parts.file.content]" doc:name="File Content" doc:id="e446406b-4ea0-4a9b-a7f0-5fa8c842339b" variableName="fileContent"/>
+		<ee:transform doc:name="Transform Body" doc:id="f0445958-f2f3-4c22-a752-af02685ee759" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+	payload.parts]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="1d2d1638-7d3a-4046-b94c-79f8822916d8" >
+			<route >
+				<set-variable value='#[payload.file.headers."Content-Disposition".filename default ""]' doc:name="Set FileName" doc:id="01ac8b8a-33fe-4a9e-af3b-27b5f95352db" variableName="fileName" />
+			</route>
+			<route >
+				<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;[{&#10;	fName__c : payload.fName.content,&#10;	lName__c : payload.lName.content,&#10;	email__c : payload.email.content default "",&#10;	gender__c : payload.gender.content default "Male"&#10;}]]' doc:name="Set Body" doc:id="100bf15c-022d-41b1-b60f-5f0231b4368f" variableName="body" />
+			</route>
+		</scatter-gather>
+		<salesforce:create type="sfUsuarios__c" doc:name="Create User" doc:id="84f1dc6b-e398-488f-a141-18f601f874fa" config-ref="Salesforce_Config">
+			<salesforce:records><![CDATA[#[vars.body]]]></salesforce:records>
+		</salesforce:create>
+		<choice doc:name="Choice" doc:id="9dbffb63-f672-4707-acf5-955eb96ec797" >
+			<when expression="#[payload.successful == true]">
+				<set-variable value="#[payload.items[0].id]" doc:name="Set Id" doc:id="e9d2f80f-97db-42a9-8acb-1e0bc0740d0f" variableName="id"/>
+				<flow-ref doc:name="Upload Image" doc:id="6b379a51-3475-41b6-8658-1b72d5f76d40" name="file-uploading"/>
+			</when>
+			<otherwise>
+				<raise-error doc:name="User Not Created" doc:id="a03a833e-474d-49bc-8397-35b0a5d8e142" type="CUSTOM:USER_NOT_CREATED"/>
+			</otherwise>
+		</choice>
+		<choice doc:name="Choice" doc:id="c92004f9-8590-4d20-8556-06696ec8c9a9" >
+			<when expression="#[vars.imageError == true]">
+				<ee:transform doc:name="Image Not Uploaded" doc:id="5228f7b8-e650-4a39-842f-c62a8d4f2157" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Usuario creado. No se pudo insertar la imagen."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="User Created" doc:id="6d4b9164-6dd7-446e-81a4-f0a780bafff2" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Usuado creado."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="aa1471c4-fe28-4e6c-b809-9e55e4f59673" >
+				<ee:transform doc:name="User Not Created" doc:id="66bcbf7a-8df0-48b4-acc1-e009013bd65c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Error al crear el usuario",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+    </flow>
+	<sub-flow name="file-uploading" doc:id="f9aeb7a9-db39-4e59-a298-e2499b8ac87f" >
+		<try doc:name="Try" doc:id="a8552ba3-c9d3-4e7a-9851-194cb1180b77" >
+			<ee:transform doc:name="Map Object To Binary" doc:id="0589d0ec-aa1f-4f1d-809d-8ec8a867a997">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+import * from dw::core::Binaries
+output application/java
+---
+[{
+  PathOnClient: vars.fileName,
+  VersionData: vars.fileContent as Binary {
+    class: "byte[]"
+  }
+}]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			<salesforce:upsert objectType="ContentVersion" externalIdFieldName="id" doc:name="Upload File" doc:id="d1f2a528-0094-4090-ace8-9e2e3e09ee09" config-ref="Salesforce_Config" />
+			<salesforce:query doc:name="Get Document Link" doc:id="7534ee84-c26d-4669-b54b-109925277f48" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query><![CDATA[SELECT ContentDocumentId
+FROM ContentVersion
+WHERE ID = ':cvId']]></salesforce:salesforce-query>
+			<salesforce:parameters><![CDATA[#[output application/java
+---
+{
+	cvId : payload.items[0].id
+}]]]></salesforce:parameters>
+		</salesforce:query>
+			<ee:transform doc:name="Transform Message" doc:id="a21a9cbe-ed7b-4f6b-9f94-1a555f52deaf">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	LinkedEntityId: vars.id as String,
+	ContentDocumentId: payload01.ContentDocumentId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			<salesforce:upsert objectType="ContentDocumentLink" externalIdFieldName="id" doc:name="Create Document Link" doc:id="72dceca2-8483-4a72-b730-bb25493052f2" config-ref="Salesforce_Config" />
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="9ec5b9ed-7997-477e-a3ea-078bd6d3bd2f" >
+					<set-variable value="#[true]" doc:name="Set Image Error" doc:id="25c8cbea-822a-462a-bc62-3265640d82ae" variableName="imageError"/>
+				</on-error-continue>
+			</error-handler>
+		</try>
+	</sub-flow>
+</mule>

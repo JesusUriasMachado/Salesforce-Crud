@@ -1,0 +1,23 @@
+#%RAML 1.0 Trait
+responses:
+  400:
+    description: BAD REQUEST
+    body:
+      application/json:
+        example: {
+          message : "Incorrect provided data. Please check."
+        }
+  404:
+    description: NOT FOUND
+    body:
+      application/json:
+        example: {
+          message : "Resource not found."
+        }
+  500:
+    description: SERVER ERROR
+    body:
+      application/json:
+        example: {
+          message : "Server error."
+        }

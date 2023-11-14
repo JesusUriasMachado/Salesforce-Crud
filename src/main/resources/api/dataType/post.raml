@@ -1,0 +1,18 @@
+#%RAML 1.0 DataType
+type: object
+properties: 
+  fName:
+    type: string
+    required: true
+  lName:
+    type: string
+    required: true
+  email:
+    type: string
+    required: false
+  gender:
+    type: string
+    required: false
+  image:
+    type: !include file.raml
+    required: false
