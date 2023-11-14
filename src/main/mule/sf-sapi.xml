@@ -138,38 +138,125 @@ output application/json
         </error-handler>
     </flow>
     <flow name="delete:\user\(id):sf-sapi-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
-            </ee:variables>
-        </ee:transform>
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
+		<try doc:name="Try" doc:id="61072ba7-4a65-4bb1-bbb8-afa6d84dc6ef" >
+			<salesforce:query doc:name="Get By ID" doc:id="99b15ba9-8231-43fa-a06c-b25d864e97af" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query><![CDATA[SELECT
+	Id
+FROM sfUsuarios__c
+WHERE Id = ':id']]></salesforce:salesforce-query>
+			<salesforce:parameters><![CDATA[#[output application/java
+---
+{
+	id : attributes.uriParams.id
+}]]]></salesforce:parameters>
+		</salesforce:query>
+			<error-handler>
+				<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="156cd301-ba6a-439b-951b-a19a15cd5ca8" >
+					<raise-error doc:name="Get By ID Error" doc:id="ddd0f34b-a3c5-46c1-bcf8-34744c8b6818" type="CUSTOM:INVALID_ID" description="An error ocurred. Please review the provided ID."/>
+				</on-error-propagate>
+			</error-handler>
+		</try>
+		<choice doc:name="Choice" doc:id="3d9b4971-b092-4e5c-a5bc-86c6b6465559" >
+			<when expression="#[sizeOf(payload) &gt;= 1]">
+				<ee:transform doc:name="Id Mapping" doc:id="0ccd3a32-f338-4aad-887d-0ab0137a54c4">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+[payload[0].Id]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<salesforce:delete doc:name="Delete By ID" doc:id="08111071-acbb-43da-b011-b3a22cd891cb" config-ref="Salesforce_Config" />
+			</when>
+			<otherwise >
+				<raise-error doc:name="Raise error" doc:id="533a192e-8959-4669-b27e-0d5d4eba277d" type="CUSTOM:NOT_FOUND" description="The provided user does not exist"/>
+			</otherwise>
+		</choice>
+		<choice doc:name="Choice" doc:id="f2c36042-417e-4e1a-8c5c-5bc43f095539" >
+			<when expression="#[payload.successful == true]">
+				<ee:transform doc:name="User Deleted" doc:id="f97d0505-c1d4-4a9f-b698-ff0260dda0bb">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
-  message: "User deleted sucessfully"
+	message : "User deleted."
 }]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
+			</ee:message>
+		</ee:transform>
+			</when>
+			<otherwise >
+				<raise-error doc:name="User Not Deleted" doc:id="c33f72ee-4831-46f5-b7fd-2f0adf537831" type="CUSTOM:NOT_DELETED"/>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="a06a003d-6dc1-4f90-9a68-3fc1ae0f24ab" type="CUSTOM:NOT_DELETED">
+				<ee:transform doc:name="Not Deleted Error" doc:id="c9e653d1-e3a5-4ed3-9add-f9b11b7a753e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Ocurrio un error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set Status" doc:id="12d37119-1b79-418f-b4ca-043ac26114d4" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="941e244e-e5f7-448f-a886-e84258701658" type="CUSTOM:INVALID_ID">
+				<ee:transform doc:name="Invalid ID Error" doc:id="f15da013-5347-4a6d-a155-056960b25d5b" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Ocurrio un error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set Status" doc:id="d6c39623-f3a6-4acf-a6bd-f706620e0133" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f05d605f-3e3d-44bd-98f9-d0e9ccf0bb3e" type="CUSTOM:NOT_FOUND">
+				<ee:transform doc:name="Transform Message" doc:id="75c6f304-380a-4bf1-ad0c-6b7dcc94ec6f" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "The provided ID does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="404" doc:name="Set Status" doc:id="0e552944-70a1-4b8d-beb4-398f21f657d2" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="f4c85e02-65b5-4352-9404-4f4bb076f232" >
+				<ee:transform doc:name="Transform Message" doc:id="9cabd71f-e1e2-4f94-8241-d1c4c26fe41a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "Ocurrio un error.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="patch:\user\(id):multipart\form-data:sf-sapi-config">
-        <ee:transform doc:name="Transform Message">
-            <ee:variables>
-                <ee:set-variable variableName="id">attributes.uriParams.'id'</ee:set-variable>
-            </ee:variables>
-        </ee:transform>
-        <ee:transform doc:name="Transform Message">
-            <ee:message>
-                <ee:set-payload><![CDATA[%dw 2.0
-output application/json
+		<ee:transform doc:name="Transform Message" doc:id="1aa88993-50a1-438e-b376-8348ec02fa8e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
 ---
 {
-  message: "User updated sucessfully"
+	message : "hola"
 }]]></ee:set-payload>
-            </ee:message>
-        </ee:transform>
+			</ee:message>
+		</ee:transform>
     </flow>
     <flow name="get:\user\(id):sf-sapi-config">
 		<salesforce:query doc:name="Get User" doc:id="30a1d0c2-e65b-4153-83e6-0acffe90656d" config-ref="Salesforce_Config">
