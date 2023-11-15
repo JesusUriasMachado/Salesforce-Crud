@@ -247,16 +247,64 @@ output application/json
 		</error-handler>
     </flow>
     <flow name="patch:\user\(id):multipart\form-data:sf-sapi-config">
-		<ee:transform doc:name="Transform Message" doc:id="1aa88993-50a1-438e-b376-8348ec02fa8e" >
+		<ee:transform doc:name="Transform Body" doc:id="8c9d3e31-980a-4f0f-af9b-4b081f696ee8" >
 			<ee:message >
 				<ee:set-payload ><![CDATA[%dw 2.0
-output application/java
+output application/json
 ---
-{
-	message : "hola"
-}]]></ee:set-payload>
+	payload.parts]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;---&#10;[{&#10;	ID : attributes.uriParams.id,&#10;	fName__c : payload.fName.content,&#10;	lName__c : payload.lName.content,&#10;	email__c : payload.email.content,&#10;	gender__c : payload.gender.content&#10;}]]" doc:name="Set User" doc:id="4c9ad604-2751-4e10-be17-a8737b0b656c" variableName="user"/>
+		<salesforce:update doc:name="Patch User" doc:id="34bb7778-e21d-46e0-ad7e-f913c3f03e8a" config-ref="Salesforce_Config" type="sfUsuarios__c" >
+			<salesforce:records ><![CDATA[#[vars.user]]]></salesforce:records>
+		</salesforce:update>
+		<choice doc:name="Choice" doc:id="2228a327-0b69-46a5-86ec-7143b470cde5" >
+			<when expression="#[payload.successful == true]">
+				<ee:transform doc:name="User Modified" doc:id="aa77cdf7-d954-4f90-aae8-7933dabe805e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "User modified."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<raise-error doc:name="User Not Modified" doc:id="3a93e0bb-2f83-493b-ad1f-d70a85f7974d" type="CUSTOM:NOT_MODIFIED" description="User not found or not modified. Check the provided ID."/>
+			</otherwise>
+		</choice>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ea795c16-e8ac-44e5-bc26-eb4cd271567e" type="CUSTOM:NOT_MODIFIED">
+				<ee:transform doc:name="Transform Message" doc:id="998863c8-3162-4070-bf37-2fc8298f388b" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "An error ocurred.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value="400" doc:name="Set Status" doc:id="51519b81-e53e-40dc-9d54-a5a540c05619" variableName="httpStatus"/>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="e7343989-1c8c-487d-ba31-cb9f3252c67f" >
+				<ee:transform doc:name="Transform Message" doc:id="0681e38b-a221-461d-853f-60466acb38fd" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	message : "An error ocurred.",
+	details : error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
     </flow>
     <flow name="get:\user\(id):sf-sapi-config">
 		<salesforce:query doc:name="Get User" doc:id="30a1d0c2-e65b-4153-83e6-0acffe90656d" config-ref="Salesforce_Config">
